@@ -3,28 +3,72 @@
   "desc": "",
   "methods": [
     {
-      "name": "doMath",
+      "name": "deposit",
       "args": [
         {
-          "name": "a",
-          "type": "uint64",
-          "desc": "The first number"
-        },
-        {
-          "name": "b",
-          "type": "uint64",
-          "desc": "The second number"
-        },
-        {
-          "name": "operation",
-          "type": "string",
-          "desc": "The operation to perform. Can be either 'sum' or 'difference'"
+          "name": "payment",
+          "type": "pay",
+          "desc": ""
         }
       ],
-      "desc": "A method that takes two numbers and does either addition or subtraction",
+      "desc": "",
       "returns": {
-        "type": "uint64",
-        "desc": "The result of the operation"
+        "type": "void",
+        "desc": ""
+      }
+    },
+    {
+      "name": "withdraw",
+      "args": [
+        {
+          "name": "amount",
+          "type": "uint64",
+          "desc": ""
+        }
+      ],
+      "desc": "",
+      "returns": {
+        "type": "void",
+        "desc": ""
+      }
+    },
+    {
+      "name": "closeOutOfApplication",
+      "args": [],
+      "desc": "",
+      "returns": {
+        "type": "void",
+        "desc": ""
+      }
+    },
+    {
+      "name": "openFlashLoan",
+      "args": [
+        {
+          "name": "amount",
+          "type": "uint64",
+          "desc": ""
+        }
+      ],
+      "desc": "",
+      "returns": {
+        "type": "void",
+        "desc": ""
+      }
+    },
+    {
+      "name": "closeFlashLoan",
+      "args": [
+        {
+          "name": "repay",
+          "type": "pay",
+          "desc": ""
+        }
+      ],
+      "desc": "",
+      "returns": {
+        "type": "void",
+        "desc": ""
       }
     }
   ]

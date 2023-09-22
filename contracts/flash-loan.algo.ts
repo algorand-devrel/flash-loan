@@ -2,46 +2,56 @@ import { Contract } from '@algorandfoundation/tealscript';
 
 // eslint-disable-next-line no-unused-vars
 class FlashLoan extends Contract {
-   /**
-   * Calculates the sum of two numbers
-   *
-   * @param a
-   * @param b
-   * @returns The sum of a and b
-   */
-  private getSum(a: number, b: number): number {
-    return a + b;
+  deposited = LocalStateKey<number>();
+
+  @allow.call('OptIn')
+  @allow.call('NoOp')
+  deposit(payment: PayTxn): void {
+    assert(payment.receiver === this.app.address);
+    this.deposited(this.txn.sender).value = this.deposited(this.txn.sender).value
+      + payment.amount;
   }
 
-  /**
-   * Calculates the difference between two numbers
-   *
-   * @param a
-   * @param b
-   * @returns The difference between a and b.
-   */
-  private getDifference(a: number, b: number): number {
-    return a >= b ? a - b : b - a;
+  withdraw(amount: number): void {
+    this.deposited(this.txn.sender).value = this.deposited(this.txn.sender).value
+      - amount;
+    sendPayment({
+      receiver: this.txn.sender,
+      amount: amount,
+      fee: 0,
+    });
   }
 
-  /**
-  * A method that takes two numbers and does either addition or subtraction
-  *
-  * @param a The first number
-  * @param b The second number
-  * @param operation The operation to perform. Can be either 'sum' or 'difference'
-  *
-  * @returns The result of the operation
-  */
-  doMath(a: number, b: number, operation: string): number {
-    let result: number;
+  closeOutOfApplication(): void {
+    if (this.deposited(this.txn.sender).exists) {
+      sendPayment({
+        receiver: this.txn.sender,
+        amount: this.deposited(this.txn.sender).value,
+        fee: 0,
+      });
+    }
+  }
 
-    if (operation === 'sum') {
-      result = this.getSum(a, b);
-    } else if (operation === 'difference') {
-      result = this.getDifference(a, b);
-    } else throw Error('Invalid operation');
+  openFlashLoan(amount: number): void {
+    assert(this.txn.groupIndex === 0);
+    assert(this.txnGroup[this.txnGroup.length - 1].typeEnum === TransactionType.ApplicationCall);
+    assert(this.txnGroup[this.txnGroup.length - 1].applicationID === globals.currentApplicationID);
+    assert(this.txnGroup[this.txnGroup.length - 1].applicationArgs[0] === method('closeFlashLoan(pay)void'));
 
-    return result;
+    sendPayment({
+      receiver: this.txn.sender,
+      amount: amount,
+      fee: 0,
+    });
+  }
+
+  closeFlashLoan(repay: PayTxn): void {
+    assert(this.txn.groupIndex === this.txnGroup.length - 1);
+    assert(this.txnGroup[0].typeEnum === TransactionType.ApplicationCall);
+    assert(this.txnGroup[0].applicationID === globals.currentApplicationID);
+    assert(this.txnGroup[0].applicationArgs[0] === method('openFlashLoan(uint64)void'));
+
+    assert(repay.receiver === this.app.address);
+    assert(repay.amount === btoi(this.txnGroup[0].applicationArgs[1]));
   }
 }

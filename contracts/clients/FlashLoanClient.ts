@@ -26,7 +26,28 @@ import { SendTransactionResult, TransactionToSign, SendTransactionFrom } from '@
 import { Algodv2, OnApplicationComplete, Transaction, TransactionWithSigner, AtomicTransactionComposer } from 'algosdk'
 export const APP_SPEC: AppSpec = {
   "hints": {
-    "doMath(uint64,uint64,string)uint64": {
+    "deposit(pay)void": {
+      "call_config": {
+        "opt_in": "CALL",
+        "no_op": "CALL"
+      }
+    },
+    "withdraw(uint64)void": {
+      "call_config": {
+        "no_op": "CALL"
+      }
+    },
+    "closeOutOfApplication()void": {
+      "call_config": {
+        "no_op": "CALL"
+      }
+    },
+    "openFlashLoan(uint64)void": {
+      "call_config": {
+        "no_op": "CALL"
+      }
+    },
+    "closeFlashLoan(pay)void": {
       "call_config": {
         "no_op": "CALL"
       }
@@ -41,7 +62,12 @@ export const APP_SPEC: AppSpec = {
   },
   "schema": {
     "local": {
-      "declared": {},
+      "declared": {
+        "deposited": {
+          "type": "uint64",
+          "key": "deposited"
+        }
+      },
       "reserved": {}
     },
     "global": {
@@ -56,11 +82,11 @@ export const APP_SPEC: AppSpec = {
     },
     "local": {
       "num_byte_slices": 0,
-      "num_uints": 0
+      "num_uints": 1
     }
   },
   "source": {
-    "approval": "I3ByYWdtYSB2ZXJzaW9uIDkKCnR4biBBcHBsaWNhdGlvbklECmludCAwCj4KaW50IDYKKgp0eG4gT25Db21wbGV0aW9uCisKc3dpdGNoIGNyZWF0ZV9Ob09wIE5PVF9JTVBMRU1FTlRFRCBOT1RfSU1QTEVNRU5URUQgTk9UX0lNUExFTUVOVEVEIE5PVF9JTVBMRU1FTlRFRCBOT1RfSU1QTEVNRU5URUQgY2FsbF9Ob09wCgpOT1RfSU1QTEVNRU5URUQ6CgllcnIKCmdldFN1bToKCXByb3RvIDIgMQoKCS8vIGNvbnRyYWN0cy9mbGFzaC1sb2FuLmFsZ28udHM6MTMKCS8vIHJldHVybiBhICsgYjsKCWZyYW1lX2RpZyAtMSAvLyBhOiB1aW50NjQKCWZyYW1lX2RpZyAtMiAvLyBiOiB1aW50NjQKCSsKCXJldHN1YgoKZ2V0RGlmZmVyZW5jZToKCXByb3RvIDIgMQoKCS8vIGNvbnRyYWN0cy9mbGFzaC1sb2FuLmFsZ28udHM6MjQKCS8vIHJldHVybiBhID49IGIgPyBhIC0gYiA6IGIgLSBhOwoJZnJhbWVfZGlnIC0xIC8vIGE6IHVpbnQ2NAoJZnJhbWVfZGlnIC0yIC8vIGI6IHVpbnQ2NAoJPj0KCWJ6IHRlcm5hcnkwX2ZhbHNlCglmcmFtZV9kaWcgLTEgLy8gYTogdWludDY0CglmcmFtZV9kaWcgLTIgLy8gYjogdWludDY0CgktCgliIHRlcm5hcnkwX2VuZAoKdGVybmFyeTBfZmFsc2U6CglmcmFtZV9kaWcgLTIgLy8gYjogdWludDY0CglmcmFtZV9kaWcgLTEgLy8gYTogdWludDY0CgktCgp0ZXJuYXJ5MF9lbmQ6CglyZXRzdWIKCmFiaV9yb3V0ZV9kb01hdGg6CglieXRlIDB4Cgl0eG5hIEFwcGxpY2F0aW9uQXJncyAzCglleHRyYWN0IDIgMAoJdHhuYSBBcHBsaWNhdGlvbkFyZ3MgMgoJYnRvaQoJdHhuYSBBcHBsaWNhdGlvbkFyZ3MgMQoJYnRvaQoJY2FsbHN1YiBkb01hdGgKCWludCAxCglyZXR1cm4KCmRvTWF0aDoKCXByb3RvIDQgMAoKCS8vIGlmMF9jb25kaXRpb24KCS8vIGNvbnRyYWN0cy9mbGFzaC1sb2FuLmFsZ28udHM6MzkKCS8vIG9wZXJhdGlvbiA9PT0gJ3N1bScKCWZyYW1lX2RpZyAtMyAvLyBvcGVyYXRpb246IGJ5dGVzCglieXRlICJzdW0iCgk9PQoJYnogaWYwX2Vsc2VpZjFfY29uZGl0aW9uCgoJLy8gaWYwX2NvbnNlcXVlbnQKCS8vIGNvbnRyYWN0cy9mbGFzaC1sb2FuLmFsZ28udHM6NDAKCS8vIHJlc3VsdCA9IHRoaXMuZ2V0U3VtKGEsIGIpCgkvLyBubyBkdXBuIG5lZWRlZAoJZnJhbWVfZGlnIC0yIC8vIGI6IHVpbnQ2NAoJZnJhbWVfZGlnIC0xIC8vIGE6IHVpbnQ2NAoJY2FsbHN1YiBnZXRTdW0KCWZyYW1lX2J1cnkgLTQgLy8gcmVzdWx0OiB1aW50NjQKCWIgaWYwX2VuZAoKaWYwX2Vsc2VpZjFfY29uZGl0aW9uOgoJLy8gY29udHJhY3RzL2ZsYXNoLWxvYW4uYWxnby50czo0MQoJLy8gb3BlcmF0aW9uID09PSAnZGlmZmVyZW5jZScKCWZyYW1lX2RpZyAtMyAvLyBvcGVyYXRpb246IGJ5dGVzCglieXRlICJkaWZmZXJlbmNlIgoJPT0KCWJ6IGlmMF9lbHNlCgoJLy8gaWYwX2Vsc2VpZjFfY29uc2VxdWVudAoJLy8gY29udHJhY3RzL2ZsYXNoLWxvYW4uYWxnby50czo0MgoJLy8gcmVzdWx0ID0gdGhpcy5nZXREaWZmZXJlbmNlKGEsIGIpCgkvLyBubyBkdXBuIG5lZWRlZAoJZnJhbWVfZGlnIC0yIC8vIGI6IHVpbnQ2NAoJZnJhbWVfZGlnIC0xIC8vIGE6IHVpbnQ2NAoJY2FsbHN1YiBnZXREaWZmZXJlbmNlCglmcmFtZV9idXJ5IC00IC8vIHJlc3VsdDogdWludDY0CgliIGlmMF9lbmQKCmlmMF9lbHNlOgoJZXJyIC8vICdJbnZhbGlkIG9wZXJhdGlvbicKCmlmMF9lbmQ6CgkvLyBjb250cmFjdHMvZmxhc2gtbG9hbi5hbGdvLnRzOjQ1CgkvLyByZXR1cm4gcmVzdWx0OwoJZnJhbWVfZGlnIC00IC8vIHJlc3VsdDogdWludDY0CglpdG9iCglieXRlIDB4MTUxZjdjNzUKCXN3YXAKCWNvbmNhdAoJbG9nCglyZXRzdWIKCmFiaV9yb3V0ZV9kZWZhdWx0VEVBTFNjcmlwdENyZWF0ZToKCWludCAxCglyZXR1cm4KCmNyZWF0ZV9Ob09wOgoJdHhuIE51bUFwcEFyZ3MKCWJ6IGFiaV9yb3V0ZV9kZWZhdWx0VEVBTFNjcmlwdENyZWF0ZQoJZXJyCgpjYWxsX05vT3A6CgltZXRob2QgImRvTWF0aCh1aW50NjQsdWludDY0LHN0cmluZyl1aW50NjQiCgl0eG5hIEFwcGxpY2F0aW9uQXJncyAwCgltYXRjaCBhYmlfcm91dGVfZG9NYXRoCgllcnI=",
+    "approval": "I3ByYWdtYSB2ZXJzaW9uIDkKCnR4biBBcHBsaWNhdGlvbklECmludCAwCj4KaW50IDYKKgp0eG4gT25Db21wbGV0aW9uCisKc3dpdGNoIGNyZWF0ZV9Ob09wIE5PVF9JTVBMRU1FTlRFRCBOT1RfSU1QTEVNRU5URUQgTk9UX0lNUExFTUVOVEVEIE5PVF9JTVBMRU1FTlRFRCBOT1RfSU1QTEVNRU5URUQgY2FsbF9Ob09wIGNhbGxfT3B0SW4KCk5PVF9JTVBMRU1FTlRFRDoKCWVycgoKYWJpX3JvdXRlX2RlcG9zaXQ6CgkvLyBubyBkdXBuIG5lZWRlZAoJdHhuIEdyb3VwSW5kZXgKCWludCAxCgktCglkdXAKCWd0eG5zIFR5cGVFbnVtCglpbnQgcGF5Cgk9PQoJYXNzZXJ0CgljYWxsc3ViIGRlcG9zaXQKCWludCAxCglyZXR1cm4KCmRlcG9zaXQ6Cglwcm90byAxIDAKCgkvLyBjb250cmFjdHMvZmxhc2gtbG9hbi5hbGdvLnRzOjEwCgkvLyBhc3NlcnQocGF5bWVudC5yZWNlaXZlciA9PT0gdGhpcy5hcHAuYWRkcmVzcykKCWZyYW1lX2RpZyAtMSAvLyBwYXltZW50OiBwYXkKCWd0eG5zIFJlY2VpdmVyCgl0eG5hIEFwcGxpY2F0aW9ucyAwCglhcHBfcGFyYW1zX2dldCBBcHBBZGRyZXNzCglhc3NlcnQKCT09Cglhc3NlcnQKCgkvLyBjb250cmFjdHMvZmxhc2gtbG9hbi5hbGdvLnRzOjExCgkvLyB0aGlzLmRlcG9zaXRlZCh0aGlzLnR4bi5zZW5kZXIpLnZhbHVlID0gdGhpcy5kZXBvc2l0ZWQodGhpcy50eG4uc2VuZGVyKS52YWx1ZQoJdHhuIFNlbmRlcgoJYnl0ZSAiZGVwb3NpdGVkIgoJdHhuIFNlbmRlcgoJYnl0ZSAiZGVwb3NpdGVkIgoJYXBwX2xvY2FsX2dldAoJZnJhbWVfZGlnIC0xIC8vIHBheW1lbnQ6IHBheQoJZ3R4bnMgQW1vdW50CgkrCglhcHBfbG9jYWxfcHV0CglyZXRzdWIKCmFiaV9yb3V0ZV93aXRoZHJhdzoKCS8vIG5vIGR1cG4gbmVlZGVkCgl0eG5hIEFwcGxpY2F0aW9uQXJncyAxCglidG9pCgljYWxsc3ViIHdpdGhkcmF3CglpbnQgMQoJcmV0dXJuCgp3aXRoZHJhdzoKCXByb3RvIDEgMAoKCS8vIGNvbnRyYWN0cy9mbGFzaC1sb2FuLmFsZ28udHM6MTYKCS8vIHRoaXMuZGVwb3NpdGVkKHRoaXMudHhuLnNlbmRlcikudmFsdWUgPSB0aGlzLmRlcG9zaXRlZCh0aGlzLnR4bi5zZW5kZXIpLnZhbHVlCgl0eG4gU2VuZGVyCglieXRlICJkZXBvc2l0ZWQiCgl0eG4gU2VuZGVyCglieXRlICJkZXBvc2l0ZWQiCglhcHBfbG9jYWxfZ2V0CglmcmFtZV9kaWcgLTEgLy8gYW1vdW50OiB1aW50NjQKCS0KCWFwcF9sb2NhbF9wdXQKCgkvLyBjb250cmFjdHMvZmxhc2gtbG9hbi5hbGdvLnRzOjE4CgkvLyBzZW5kUGF5bWVudCh7CglpdHhuX2JlZ2luCglpbnQgcGF5CglpdHhuX2ZpZWxkIFR5cGVFbnVtCgoJLy8gY29udHJhY3RzL2ZsYXNoLWxvYW4uYWxnby50czoxOQoJLy8gcmVjZWl2ZXI6IHRoaXMudHhuLnNlbmRlcgoJdHhuIFNlbmRlcgoJaXR4bl9maWVsZCBSZWNlaXZlcgoKCS8vIGNvbnRyYWN0cy9mbGFzaC1sb2FuLmFsZ28udHM6MjAKCS8vIGFtb3VudDogYW1vdW50CglmcmFtZV9kaWcgLTEgLy8gYW1vdW50OiB1aW50NjQKCWl0eG5fZmllbGQgQW1vdW50CgoJLy8gY29udHJhY3RzL2ZsYXNoLWxvYW4uYWxnby50czoyMQoJLy8gZmVlOiAwCglpbnQgMAoJaXR4bl9maWVsZCBGZWUKCgkvLyBTdWJtaXQgaW5uZXIgdHJhbnNhY3Rpb24KCWl0eG5fc3VibWl0CglyZXRzdWIKCmFiaV9yb3V0ZV9jbG9zZU91dE9mQXBwbGljYXRpb246CgkvLyBubyBkdXBuIG5lZWRlZAoJY2FsbHN1YiBjbG9zZU91dE9mQXBwbGljYXRpb24KCWludCAxCglyZXR1cm4KCmNsb3NlT3V0T2ZBcHBsaWNhdGlvbjoKCXByb3RvIDAgMAoKCS8vIGlmMF9jb25kaXRpb24KCS8vIGNvbnRyYWN0cy9mbGFzaC1sb2FuLmFsZ28udHM6MjYKCS8vIHRoaXMuZGVwb3NpdGVkKHRoaXMudHhuLnNlbmRlcikuZXhpc3RzCgl0eG4gU2VuZGVyCgl0eG5hIEFwcGxpY2F0aW9ucyAwCglieXRlICJkZXBvc2l0ZWQiCglhcHBfbG9jYWxfZ2V0X2V4Cglzd2FwCglwb3AKCWJ6IGlmMF9lbmQKCgkvLyBpZjBfY29uc2VxdWVudAoJLy8gY29udHJhY3RzL2ZsYXNoLWxvYW4uYWxnby50czoyNwoJLy8gc2VuZFBheW1lbnQoewoJaXR4bl9iZWdpbgoJaW50IHBheQoJaXR4bl9maWVsZCBUeXBlRW51bQoKCS8vIGNvbnRyYWN0cy9mbGFzaC1sb2FuLmFsZ28udHM6MjgKCS8vIHJlY2VpdmVyOiB0aGlzLnR4bi5zZW5kZXIKCXR4biBTZW5kZXIKCWl0eG5fZmllbGQgUmVjZWl2ZXIKCgkvLyBjb250cmFjdHMvZmxhc2gtbG9hbi5hbGdvLnRzOjI5CgkvLyBhbW91bnQ6IHRoaXMuZGVwb3NpdGVkKHRoaXMudHhuLnNlbmRlcikudmFsdWUKCXR4biBTZW5kZXIKCWJ5dGUgImRlcG9zaXRlZCIKCWFwcF9sb2NhbF9nZXQKCWl0eG5fZmllbGQgQW1vdW50CgoJLy8gY29udHJhY3RzL2ZsYXNoLWxvYW4uYWxnby50czozMAoJLy8gZmVlOiAwCglpbnQgMAoJaXR4bl9maWVsZCBGZWUKCgkvLyBTdWJtaXQgaW5uZXIgdHJhbnNhY3Rpb24KCWl0eG5fc3VibWl0CgppZjBfZW5kOgoJcmV0c3ViCgphYmlfcm91dGVfb3BlbkZsYXNoTG9hbjoKCS8vIG5vIGR1cG4gbmVlZGVkCgl0eG5hIEFwcGxpY2F0aW9uQXJncyAxCglidG9pCgljYWxsc3ViIG9wZW5GbGFzaExvYW4KCWludCAxCglyZXR1cm4KCm9wZW5GbGFzaExvYW46Cglwcm90byAxIDAKCgkvLyBjb250cmFjdHMvZmxhc2gtbG9hbi5hbGdvLnRzOjM2CgkvLyBhc3NlcnQodGhpcy50eG4uZ3JvdXBJbmRleCA9PT0gMCkKCXR4biBHcm91cEluZGV4CglpbnQgMAoJPT0KCWFzc2VydAoKCS8vIGNvbnRyYWN0cy9mbGFzaC1sb2FuLmFsZ28udHM6MzcKCS8vIGFzc2VydCh0aGlzLnR4bkdyb3VwW3RoaXMudHhuR3JvdXAubGVuZ3RoIC0gMV0udHlwZUVudW0gPT09IFRyYW5zYWN0aW9uVHlwZS5BcHBsaWNhdGlvbkNhbGwpCglnbG9iYWwgR3JvdXBTaXplCglpbnQgMQoJLQoJZ3R4bnMgVHlwZUVudW0KCWludCBhcHBsCgk9PQoJYXNzZXJ0CgoJLy8gY29udHJhY3RzL2ZsYXNoLWxvYW4uYWxnby50czozOAoJLy8gYXNzZXJ0KHRoaXMudHhuR3JvdXBbdGhpcy50eG5Hcm91cC5sZW5ndGggLSAxXS5hcHBsaWNhdGlvbklEID09PSBnbG9iYWxzLmN1cnJlbnRBcHBsaWNhdGlvbklEKQoJZ2xvYmFsIEdyb3VwU2l6ZQoJaW50IDEKCS0KCWd0eG5zIEFwcGxpY2F0aW9uSUQKCWdsb2JhbCBDdXJyZW50QXBwbGljYXRpb25JRAoJPT0KCWFzc2VydAoKCS8vIGNvbnRyYWN0cy9mbGFzaC1sb2FuLmFsZ28udHM6MzkKCS8vIGFzc2VydCh0aGlzLnR4bkdyb3VwW3RoaXMudHhuR3JvdXAubGVuZ3RoIC0gMV0uYXBwbGljYXRpb25BcmdzWzBdID09PSBtZXRob2QoJ2Nsb3NlRmxhc2hMb2FuKHBheSl2b2lkJykpCglnbG9iYWwgR3JvdXBTaXplCglpbnQgMQoJLQoJZ3R4bnMgQXBwbGljYXRpb25BcmdzIDAKCW1ldGhvZCAiY2xvc2VGbGFzaExvYW4ocGF5KXZvaWQiCgk9PQoJYXNzZXJ0CgoJLy8gY29udHJhY3RzL2ZsYXNoLWxvYW4uYWxnby50czo0MQoJLy8gc2VuZFBheW1lbnQoewoJaXR4bl9iZWdpbgoJaW50IHBheQoJaXR4bl9maWVsZCBUeXBlRW51bQoKCS8vIGNvbnRyYWN0cy9mbGFzaC1sb2FuLmFsZ28udHM6NDIKCS8vIHJlY2VpdmVyOiB0aGlzLnR4bi5zZW5kZXIKCXR4biBTZW5kZXIKCWl0eG5fZmllbGQgUmVjZWl2ZXIKCgkvLyBjb250cmFjdHMvZmxhc2gtbG9hbi5hbGdvLnRzOjQzCgkvLyBhbW91bnQ6IGFtb3VudAoJZnJhbWVfZGlnIC0xIC8vIGFtb3VudDogdWludDY0CglpdHhuX2ZpZWxkIEFtb3VudAoKCS8vIGNvbnRyYWN0cy9mbGFzaC1sb2FuLmFsZ28udHM6NDQKCS8vIGZlZTogMAoJaW50IDAKCWl0eG5fZmllbGQgRmVlCgoJLy8gU3VibWl0IGlubmVyIHRyYW5zYWN0aW9uCglpdHhuX3N1Ym1pdAoJcmV0c3ViCgphYmlfcm91dGVfY2xvc2VGbGFzaExvYW46CgkvLyBubyBkdXBuIG5lZWRlZAoJdHhuIEdyb3VwSW5kZXgKCWludCAxCgktCglkdXAKCWd0eG5zIFR5cGVFbnVtCglpbnQgcGF5Cgk9PQoJYXNzZXJ0CgljYWxsc3ViIGNsb3NlRmxhc2hMb2FuCglpbnQgMQoJcmV0dXJuCgpjbG9zZUZsYXNoTG9hbjoKCXByb3RvIDEgMAoKCS8vIGNvbnRyYWN0cy9mbGFzaC1sb2FuLmFsZ28udHM6NDkKCS8vIGFzc2VydCh0aGlzLnR4bi5ncm91cEluZGV4ID09PSB0aGlzLnR4bkdyb3VwLmxlbmd0aCAtIDEpCgl0eG4gR3JvdXBJbmRleAoJZ2xvYmFsIEdyb3VwU2l6ZQoJaW50IDEKCS0KCT09Cglhc3NlcnQKCgkvLyBjb250cmFjdHMvZmxhc2gtbG9hbi5hbGdvLnRzOjUwCgkvLyBhc3NlcnQodGhpcy50eG5Hcm91cFswXS50eXBlRW51bSA9PT0gVHJhbnNhY3Rpb25UeXBlLkFwcGxpY2F0aW9uQ2FsbCkKCWludCAwCglndHhucyBUeXBlRW51bQoJaW50IGFwcGwKCT09Cglhc3NlcnQKCgkvLyBjb250cmFjdHMvZmxhc2gtbG9hbi5hbGdvLnRzOjUxCgkvLyBhc3NlcnQodGhpcy50eG5Hcm91cFswXS5hcHBsaWNhdGlvbklEID09PSBnbG9iYWxzLmN1cnJlbnRBcHBsaWNhdGlvbklEKQoJaW50IDAKCWd0eG5zIEFwcGxpY2F0aW9uSUQKCWdsb2JhbCBDdXJyZW50QXBwbGljYXRpb25JRAoJPT0KCWFzc2VydAoKCS8vIGNvbnRyYWN0cy9mbGFzaC1sb2FuLmFsZ28udHM6NTIKCS8vIGFzc2VydCh0aGlzLnR4bkdyb3VwWzBdLmFwcGxpY2F0aW9uQXJnc1swXSA9PT0gbWV0aG9kKCdvcGVuRmxhc2hMb2FuKHVpbnQ2NCl2b2lkJykpCglpbnQgMAoJZ3R4bnMgQXBwbGljYXRpb25BcmdzIDAKCW1ldGhvZCAib3BlbkZsYXNoTG9hbih1aW50NjQpdm9pZCIKCT09Cglhc3NlcnQKCgkvLyBjb250cmFjdHMvZmxhc2gtbG9hbi5hbGdvLnRzOjU0CgkvLyBhc3NlcnQocmVwYXkucmVjZWl2ZXIgPT09IHRoaXMuYXBwLmFkZHJlc3MpCglmcmFtZV9kaWcgLTEgLy8gcmVwYXk6IHBheQoJZ3R4bnMgUmVjZWl2ZXIKCXR4bmEgQXBwbGljYXRpb25zIDAKCWFwcF9wYXJhbXNfZ2V0IEFwcEFkZHJlc3MKCWFzc2VydAoJPT0KCWFzc2VydAoKCS8vIGNvbnRyYWN0cy9mbGFzaC1sb2FuLmFsZ28udHM6NTUKCS8vIGFzc2VydChyZXBheS5hbW91bnQgPT09IGJ0b2kodGhpcy50eG5Hcm91cFswXS5hcHBsaWNhdGlvbkFyZ3NbMV0pKQoJZnJhbWVfZGlnIC0xIC8vIHJlcGF5OiBwYXkKCWd0eG5zIEFtb3VudAoJaW50IDAKCWd0eG5zIEFwcGxpY2F0aW9uQXJncyAxCglidG9pCgk9PQoJYXNzZXJ0CglyZXRzdWIKCmFiaV9yb3V0ZV9kZWZhdWx0VEVBTFNjcmlwdENyZWF0ZToKCWludCAxCglyZXR1cm4KCmNyZWF0ZV9Ob09wOgoJdHhuIE51bUFwcEFyZ3MKCWJ6IGFiaV9yb3V0ZV9kZWZhdWx0VEVBTFNjcmlwdENyZWF0ZQoJZXJyCgpjYWxsX05vT3A6CgltZXRob2QgImRlcG9zaXQocGF5KXZvaWQiCgltZXRob2QgIndpdGhkcmF3KHVpbnQ2NCl2b2lkIgoJbWV0aG9kICJjbG9zZU91dE9mQXBwbGljYXRpb24oKXZvaWQiCgltZXRob2QgIm9wZW5GbGFzaExvYW4odWludDY0KXZvaWQiCgltZXRob2QgImNsb3NlRmxhc2hMb2FuKHBheSl2b2lkIgoJdHhuYSBBcHBsaWNhdGlvbkFyZ3MgMAoJbWF0Y2ggYWJpX3JvdXRlX2RlcG9zaXQgYWJpX3JvdXRlX3dpdGhkcmF3IGFiaV9yb3V0ZV9jbG9zZU91dE9mQXBwbGljYXRpb24gYWJpX3JvdXRlX29wZW5GbGFzaExvYW4gYWJpX3JvdXRlX2Nsb3NlRmxhc2hMb2FuCgllcnIKCmNhbGxfT3B0SW46CgltZXRob2QgImRlcG9zaXQocGF5KXZvaWQiCgl0eG5hIEFwcGxpY2F0aW9uQXJncyAwCgltYXRjaCBhYmlfcm91dGVfZGVwb3NpdAoJZXJy",
     "clear": "I3ByYWdtYSB2ZXJzaW9uIDkKaW50IDE="
   },
   "contract": {
@@ -68,28 +94,72 @@ export const APP_SPEC: AppSpec = {
     "desc": "",
     "methods": [
       {
-        "name": "doMath",
+        "name": "deposit",
         "args": [
           {
-            "name": "a",
-            "type": "uint64",
-            "desc": "The first number"
-          },
-          {
-            "name": "b",
-            "type": "uint64",
-            "desc": "The second number"
-          },
-          {
-            "name": "operation",
-            "type": "string",
-            "desc": "The operation to perform. Can be either 'sum' or 'difference'"
+            "name": "payment",
+            "type": "pay",
+            "desc": ""
           }
         ],
-        "desc": "A method that takes two numbers and does either addition or subtraction",
+        "desc": "",
         "returns": {
-          "type": "uint64",
-          "desc": "The result of the operation"
+          "type": "void",
+          "desc": ""
+        }
+      },
+      {
+        "name": "withdraw",
+        "args": [
+          {
+            "name": "amount",
+            "type": "uint64",
+            "desc": ""
+          }
+        ],
+        "desc": "",
+        "returns": {
+          "type": "void",
+          "desc": ""
+        }
+      },
+      {
+        "name": "closeOutOfApplication",
+        "args": [],
+        "desc": "",
+        "returns": {
+          "type": "void",
+          "desc": ""
+        }
+      },
+      {
+        "name": "openFlashLoan",
+        "args": [
+          {
+            "name": "amount",
+            "type": "uint64",
+            "desc": ""
+          }
+        ],
+        "desc": "",
+        "returns": {
+          "type": "void",
+          "desc": ""
+        }
+      },
+      {
+        "name": "closeFlashLoan",
+        "args": [
+          {
+            "name": "repay",
+            "type": "pay",
+            "desc": ""
+          }
+        ],
+        "desc": "",
+        "returns": {
+          "type": "void",
+          "desc": ""
         }
       }
     ]
@@ -151,27 +221,48 @@ export type FlashLoan = {
    * Maps method signatures / names to their argument and return types.
    */
   methods:
-    & Record<'doMath(uint64,uint64,string)uint64' | 'doMath', {
+    & Record<'deposit(pay)void' | 'deposit', {
       argsObj: {
-        /**
-         * The first number
-         */
-        a: bigint | number
-        /**
-         * The second number
-         */
-        b: bigint | number
-        /**
-         * The operation to perform. Can be either 'sum' or 'difference'
-         */
-        operation: string
+        payment: TransactionToSign | Transaction | Promise<SendTransactionResult>
       }
-      argsTuple: [a: bigint | number, b: bigint | number, operation: string]
-      /**
-       * The result of the operation
-       */
-      returns: bigint
+      argsTuple: [payment: TransactionToSign | Transaction | Promise<SendTransactionResult>]
+      returns: void
     }>
+    & Record<'withdraw(uint64)void' | 'withdraw', {
+      argsObj: {
+        amount: bigint | number
+      }
+      argsTuple: [amount: bigint | number]
+      returns: void
+    }>
+    & Record<'closeOutOfApplication()void' | 'closeOutOfApplication', {
+      argsObj: {
+      }
+      argsTuple: []
+      returns: void
+    }>
+    & Record<'openFlashLoan(uint64)void' | 'openFlashLoan', {
+      argsObj: {
+        amount: bigint | number
+      }
+      argsTuple: [amount: bigint | number]
+      returns: void
+    }>
+    & Record<'closeFlashLoan(pay)void' | 'closeFlashLoan', {
+      argsObj: {
+        repay: TransactionToSign | Transaction | Promise<SendTransactionResult>
+      }
+      argsTuple: [repay: TransactionToSign | Transaction | Promise<SendTransactionResult>]
+      returns: void
+    }>
+  /**
+   * Defines the shape of the global and local state of the application.
+   */
+  state: {
+    local: {
+      'deposited'?: IntegerState
+    }
+  }
 }
 /**
  * Defines the possible abi call signatures
@@ -244,18 +335,94 @@ export abstract class FlashLoanCallFactory {
   }
 
   /**
-   * Constructs a no op call for the doMath(uint64,uint64,string)uint64 ABI method
-   *
-   * A method that takes two numbers and does either addition or subtraction
+   * Gets available optIn call factories
+   */
+  static get optIn() {
+    return {
+      /**
+       * Constructs an opt in call for the FlashLoan smart contract using the deposit(pay)void ABI method
+       *
+       * @param args Any args for the contract call
+       * @param params Any additional parameters for the call
+       * @returns A TypedCallParams object for the call
+       */
+      deposit(args: MethodArgs<'deposit(pay)void'>, params: AppClientCallCoreParams & CoreAppCallArgs = {}) {
+        return {
+          method: 'deposit(pay)void' as const,
+          methodArgs: Array.isArray(args) ? args : [args.payment],
+          ...params,
+        }
+      },
+    }
+  }
+
+  /**
+   * Constructs a no op call for the deposit(pay)void ABI method
    *
    * @param args Any args for the contract call
    * @param params Any additional parameters for the call
    * @returns A TypedCallParams object for the call
    */
-  static doMath(args: MethodArgs<'doMath(uint64,uint64,string)uint64'>, params: AppClientCallCoreParams & CoreAppCallArgs) {
+  static deposit(args: MethodArgs<'deposit(pay)void'>, params: AppClientCallCoreParams & CoreAppCallArgs) {
     return {
-      method: 'doMath(uint64,uint64,string)uint64' as const,
-      methodArgs: Array.isArray(args) ? args : [args.a, args.b, args.operation],
+      method: 'deposit(pay)void' as const,
+      methodArgs: Array.isArray(args) ? args : [args.payment],
+      ...params,
+    }
+  }
+  /**
+   * Constructs a no op call for the withdraw(uint64)void ABI method
+   *
+   * @param args Any args for the contract call
+   * @param params Any additional parameters for the call
+   * @returns A TypedCallParams object for the call
+   */
+  static withdraw(args: MethodArgs<'withdraw(uint64)void'>, params: AppClientCallCoreParams & CoreAppCallArgs) {
+    return {
+      method: 'withdraw(uint64)void' as const,
+      methodArgs: Array.isArray(args) ? args : [args.amount],
+      ...params,
+    }
+  }
+  /**
+   * Constructs a no op call for the closeOutOfApplication()void ABI method
+   *
+   * @param args Any args for the contract call
+   * @param params Any additional parameters for the call
+   * @returns A TypedCallParams object for the call
+   */
+  static closeOutOfApplication(args: MethodArgs<'closeOutOfApplication()void'>, params: AppClientCallCoreParams & CoreAppCallArgs) {
+    return {
+      method: 'closeOutOfApplication()void' as const,
+      methodArgs: Array.isArray(args) ? args : [],
+      ...params,
+    }
+  }
+  /**
+   * Constructs a no op call for the openFlashLoan(uint64)void ABI method
+   *
+   * @param args Any args for the contract call
+   * @param params Any additional parameters for the call
+   * @returns A TypedCallParams object for the call
+   */
+  static openFlashLoan(args: MethodArgs<'openFlashLoan(uint64)void'>, params: AppClientCallCoreParams & CoreAppCallArgs) {
+    return {
+      method: 'openFlashLoan(uint64)void' as const,
+      methodArgs: Array.isArray(args) ? args : [args.amount],
+      ...params,
+    }
+  }
+  /**
+   * Constructs a no op call for the closeFlashLoan(pay)void ABI method
+   *
+   * @param args Any args for the contract call
+   * @param params Any additional parameters for the call
+   * @returns A TypedCallParams object for the call
+   */
+  static closeFlashLoan(args: MethodArgs<'closeFlashLoan(pay)void'>, params: AppClientCallCoreParams & CoreAppCallArgs) {
+    return {
+      method: 'closeFlashLoan(pay)void' as const,
+      methodArgs: Array.isArray(args) ? args : [args.repay],
       ...params,
     }
   }
@@ -348,6 +515,25 @@ export class FlashLoanClient {
   }
 
   /**
+   * Gets available optIn methods
+   */
+  public get optIn() {
+    const $this = this
+    return {
+      /**
+       * Opts the user into an existing instance of the FlashLoan smart contract using the deposit(pay)void ABI method.
+       *
+       * @param args The arguments for the smart contract call
+       * @param params Any additional parameters for the call
+       * @returns The optIn result
+       */
+      async deposit(args: MethodArgs<'deposit(pay)void'>, params: AppClientCallCoreParams = {}): Promise<AppCallTransactionResultOfType<MethodReturn<'deposit(pay)void'>>> {
+        return $this.mapReturnValue(await $this.appClient.optIn(FlashLoanCallFactory.optIn.deposit(args, params)))
+      },
+    }
+  }
+
+  /**
    * Makes a clear_state call to an existing instance of the FlashLoan smart contract.
    *
    * @param args The arguments for the bare call
@@ -358,16 +544,116 @@ export class FlashLoanClient {
   }
 
   /**
-   * Calls the doMath(uint64,uint64,string)uint64 ABI method.
-   *
-   * A method that takes two numbers and does either addition or subtraction
+   * Calls the deposit(pay)void ABI method.
    *
    * @param args The arguments for the contract call
    * @param params Any additional parameters for the call
-   * @returns The result of the call: The result of the operation
+   * @returns The result of the call
    */
-  public doMath(args: MethodArgs<'doMath(uint64,uint64,string)uint64'>, params: AppClientCallCoreParams & CoreAppCallArgs = {}) {
-    return this.call(FlashLoanCallFactory.doMath(args, params))
+  public deposit(args: MethodArgs<'deposit(pay)void'>, params: AppClientCallCoreParams & CoreAppCallArgs = {}) {
+    return this.call(FlashLoanCallFactory.deposit(args, params))
+  }
+
+  /**
+   * Calls the withdraw(uint64)void ABI method.
+   *
+   * @param args The arguments for the contract call
+   * @param params Any additional parameters for the call
+   * @returns The result of the call
+   */
+  public withdraw(args: MethodArgs<'withdraw(uint64)void'>, params: AppClientCallCoreParams & CoreAppCallArgs = {}) {
+    return this.call(FlashLoanCallFactory.withdraw(args, params))
+  }
+
+  /**
+   * Calls the closeOutOfApplication()void ABI method.
+   *
+   * @param args The arguments for the contract call
+   * @param params Any additional parameters for the call
+   * @returns The result of the call
+   */
+  public closeOutOfApplication(args: MethodArgs<'closeOutOfApplication()void'>, params: AppClientCallCoreParams & CoreAppCallArgs = {}) {
+    return this.call(FlashLoanCallFactory.closeOutOfApplication(args, params))
+  }
+
+  /**
+   * Calls the openFlashLoan(uint64)void ABI method.
+   *
+   * @param args The arguments for the contract call
+   * @param params Any additional parameters for the call
+   * @returns The result of the call
+   */
+  public openFlashLoan(args: MethodArgs<'openFlashLoan(uint64)void'>, params: AppClientCallCoreParams & CoreAppCallArgs = {}) {
+    return this.call(FlashLoanCallFactory.openFlashLoan(args, params))
+  }
+
+  /**
+   * Calls the closeFlashLoan(pay)void ABI method.
+   *
+   * @param args The arguments for the contract call
+   * @param params Any additional parameters for the call
+   * @returns The result of the call
+   */
+  public closeFlashLoan(args: MethodArgs<'closeFlashLoan(pay)void'>, params: AppClientCallCoreParams & CoreAppCallArgs = {}) {
+    return this.call(FlashLoanCallFactory.closeFlashLoan(args, params))
+  }
+
+  /**
+   * Extracts a binary state value out of an AppState dictionary
+   *
+   * @param state The state dictionary containing the state value
+   * @param key The key of the state value
+   * @returns A BinaryState instance containing the state value, or undefined if the key was not found
+   */
+  private static getBinaryState(state: AppState, key: string): BinaryState | undefined {
+    const value = state[key]
+    if (!value) return undefined
+    if (!('valueRaw' in value))
+      throw new Error(`Failed to parse state value for ${key}; received an int when expected a byte array`)
+    return {
+      asString(): string {
+        return value.value
+      },
+      asByteArray(): Uint8Array {
+        return value.valueRaw
+      }
+    }
+  }
+
+  /**
+   * Extracts a integer state value out of an AppState dictionary
+   *
+   * @param state The state dictionary containing the state value
+   * @param key The key of the state value
+   * @returns An IntegerState instance containing the state value, or undefined if the key was not found
+   */
+  private static getIntegerState(state: AppState, key: string): IntegerState | undefined {
+    const value = state[key]
+    if (!value) return undefined
+    if ('valueRaw' in value)
+      throw new Error(`Failed to parse state value for ${key}; received a byte array when expected a number`)
+    return {
+      asBigInt() {
+        return typeof value.value === 'bigint' ? value.value : BigInt(value.value)
+      },
+      asNumber(): number {
+        return typeof value.value === 'bigint' ? Number(value.value) : value.value
+      },
+    }
+  }
+
+  /**
+   * Returns the smart contract's local state wrapped in a strongly typed accessor with options to format the stored value
+   *
+   * @param account The address of the account for which to read local state from
+   */
+  public async getLocalState(account: string | SendTransactionFrom): Promise<FlashLoan['state']['local']> {
+    const state = await this.appClient.getLocalState(account)
+    return {
+      get deposited() {
+        return FlashLoanClient.getIntegerState(state, 'deposited')
+      },
+    }
   }
 
   public compose(): FlashLoanComposer {
@@ -376,10 +662,40 @@ export class FlashLoanClient {
     let promiseChain:Promise<unknown> = Promise.resolve()
     const resultMappers: Array<undefined | ((x: any) => any)> = []
     return {
-      doMath(args: MethodArgs<'doMath(uint64,uint64,string)uint64'>, params?: AppClientCallCoreParams & CoreAppCallArgs) {
-        promiseChain = promiseChain.then(() => client.doMath(args, {...params, sendParams: {...params?.sendParams, skipSending: true, atc}}))
+      deposit(args: MethodArgs<'deposit(pay)void'>, params?: AppClientCallCoreParams & CoreAppCallArgs) {
+        promiseChain = promiseChain.then(() => client.deposit(args, {...params, sendParams: {...params?.sendParams, skipSending: true, atc}}))
         resultMappers.push(undefined)
         return this
+      },
+      withdraw(args: MethodArgs<'withdraw(uint64)void'>, params?: AppClientCallCoreParams & CoreAppCallArgs) {
+        promiseChain = promiseChain.then(() => client.withdraw(args, {...params, sendParams: {...params?.sendParams, skipSending: true, atc}}))
+        resultMappers.push(undefined)
+        return this
+      },
+      closeOutOfApplication(args: MethodArgs<'closeOutOfApplication()void'>, params?: AppClientCallCoreParams & CoreAppCallArgs) {
+        promiseChain = promiseChain.then(() => client.closeOutOfApplication(args, {...params, sendParams: {...params?.sendParams, skipSending: true, atc}}))
+        resultMappers.push(undefined)
+        return this
+      },
+      openFlashLoan(args: MethodArgs<'openFlashLoan(uint64)void'>, params?: AppClientCallCoreParams & CoreAppCallArgs) {
+        promiseChain = promiseChain.then(() => client.openFlashLoan(args, {...params, sendParams: {...params?.sendParams, skipSending: true, atc}}))
+        resultMappers.push(undefined)
+        return this
+      },
+      closeFlashLoan(args: MethodArgs<'closeFlashLoan(pay)void'>, params?: AppClientCallCoreParams & CoreAppCallArgs) {
+        promiseChain = promiseChain.then(() => client.closeFlashLoan(args, {...params, sendParams: {...params?.sendParams, skipSending: true, atc}}))
+        resultMappers.push(undefined)
+        return this
+      },
+      get optIn() {
+        const $this = this
+        return {
+          deposit(args: MethodArgs<'deposit(pay)void'>, params?: AppClientCallCoreParams) {
+            promiseChain = promiseChain.then(() => client.optIn.deposit(args, {...params, sendParams: {...params?.sendParams, skipSending: true, atc}}))
+            resultMappers.push(undefined)
+            return $this
+          },
+        }
       },
       clearState(args?: BareCallArgs & AppClientCallCoreParams & CoreAppCallArgs) {
         promiseChain = promiseChain.then(() => client.clearState({...args, sendParams: {...args?.sendParams, skipSending: true, atc}}))
@@ -407,15 +723,63 @@ export class FlashLoanClient {
 }
 export type FlashLoanComposer<TReturns extends [...any[]] = []> = {
   /**
-   * Calls the doMath(uint64,uint64,string)uint64 ABI method.
-   *
-   * A method that takes two numbers and does either addition or subtraction
+   * Calls the deposit(pay)void ABI method.
    *
    * @param args The arguments for the contract call
    * @param params Any additional parameters for the call
    * @returns The typed transaction composer so you can fluently chain multiple calls or call execute to execute all queued up transactions
    */
-  doMath(args: MethodArgs<'doMath(uint64,uint64,string)uint64'>, params?: AppClientCallCoreParams & CoreAppCallArgs): FlashLoanComposer<[...TReturns, MethodReturn<'doMath(uint64,uint64,string)uint64'>]>
+  deposit(args: MethodArgs<'deposit(pay)void'>, params?: AppClientCallCoreParams & CoreAppCallArgs): FlashLoanComposer<[...TReturns, MethodReturn<'deposit(pay)void'>]>
+
+  /**
+   * Calls the withdraw(uint64)void ABI method.
+   *
+   * @param args The arguments for the contract call
+   * @param params Any additional parameters for the call
+   * @returns The typed transaction composer so you can fluently chain multiple calls or call execute to execute all queued up transactions
+   */
+  withdraw(args: MethodArgs<'withdraw(uint64)void'>, params?: AppClientCallCoreParams & CoreAppCallArgs): FlashLoanComposer<[...TReturns, MethodReturn<'withdraw(uint64)void'>]>
+
+  /**
+   * Calls the closeOutOfApplication()void ABI method.
+   *
+   * @param args The arguments for the contract call
+   * @param params Any additional parameters for the call
+   * @returns The typed transaction composer so you can fluently chain multiple calls or call execute to execute all queued up transactions
+   */
+  closeOutOfApplication(args: MethodArgs<'closeOutOfApplication()void'>, params?: AppClientCallCoreParams & CoreAppCallArgs): FlashLoanComposer<[...TReturns, MethodReturn<'closeOutOfApplication()void'>]>
+
+  /**
+   * Calls the openFlashLoan(uint64)void ABI method.
+   *
+   * @param args The arguments for the contract call
+   * @param params Any additional parameters for the call
+   * @returns The typed transaction composer so you can fluently chain multiple calls or call execute to execute all queued up transactions
+   */
+  openFlashLoan(args: MethodArgs<'openFlashLoan(uint64)void'>, params?: AppClientCallCoreParams & CoreAppCallArgs): FlashLoanComposer<[...TReturns, MethodReturn<'openFlashLoan(uint64)void'>]>
+
+  /**
+   * Calls the closeFlashLoan(pay)void ABI method.
+   *
+   * @param args The arguments for the contract call
+   * @param params Any additional parameters for the call
+   * @returns The typed transaction composer so you can fluently chain multiple calls or call execute to execute all queued up transactions
+   */
+  closeFlashLoan(args: MethodArgs<'closeFlashLoan(pay)void'>, params?: AppClientCallCoreParams & CoreAppCallArgs): FlashLoanComposer<[...TReturns, MethodReturn<'closeFlashLoan(pay)void'>]>
+
+  /**
+   * Gets available optIn methods
+   */
+  readonly optIn: {
+    /**
+     * Opts the user into an existing instance of the FlashLoan smart contract using the deposit(pay)void ABI method.
+     *
+     * @param args The arguments for the smart contract call
+     * @param params Any additional parameters for the call
+     * @returns The typed transaction composer so you can fluently chain multiple calls or call execute to execute all queued up transactions
+     */
+    deposit(args: MethodArgs<'deposit(pay)void'>, params?: AppClientCallCoreParams): FlashLoanComposer<[...TReturns, MethodReturn<'deposit(pay)void'>]>
+  }
 
   /**
    * Makes a clear_state call to an existing instance of the FlashLoan smart contract.
