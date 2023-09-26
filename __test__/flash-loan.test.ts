@@ -4,8 +4,8 @@ import {
 import * as algokit from '@algorandfoundation/algokit-utils';
 import algosdk from 'algosdk';
 import { algorandFixture } from '@algorandfoundation/algokit-utils/testing';
+import { microAlgos } from '@algorandfoundation/algokit-utils';
 import { FlashLoanClient } from '../contracts/clients/FlashLoanClient';
-import {microAlgos} from "@algorandfoundation/algokit-utils";
 
 const fixture = algorandFixture();
 
@@ -13,40 +13,48 @@ let appClient: FlashLoanClient;
 
 describe('FlashLoan', () => {
   let algod: algosdk.Algodv2;
+  let testAccount: algosdk.Account;
   let lender: algosdk.Account;
   let borrower: algosdk.Account;
   let buyer: algosdk.Account;
   let seller: algosdk.Account;
+  let assetIndex: number;
   beforeEach(fixture.beforeEach);
 
   beforeAll(async () => {
     await fixture.beforeEach();
     algod = fixture.context.algod;
-    const { testAccount, kmd } = fixture.context;
+    testAccount = fixture.context.testAccount;
+    const { kmd } = fixture.context;
 
     // Create all accounts involved in the arbitrage.
     [lender, borrower, buyer, seller] = await Promise.all([
-      algokit.getOrCreateKmdWalletAccount({
-        name: 'flash-loan-lender',
-      }, algod, kmd),
-      algokit.getOrCreateKmdWalletAccount({
-        name: 'flash-loan-borrower',
-      }, algod, kmd),
-      algokit.getOrCreateKmdWalletAccount({
-        name: 'flash-loan-buyer',
-      }, algod, kmd),
-      algokit.getOrCreateKmdWalletAccount({
-        name: 'flash-loan-seller',
-      }, algod, kmd),
+      algokit.getOrCreateKmdWalletAccount({ name: 'flash-loan-lender' }, algod, kmd),
+      algokit.getOrCreateKmdWalletAccount({ name: 'flash-loan-borrower' }, algod, kmd),
+      algokit.getOrCreateKmdWalletAccount({ name: 'flash-loan-buyer' }, algod, kmd),
+      algokit.getOrCreateKmdWalletAccount({ name: 'flash-loan-seller' }, algod, kmd),
     ]);
     await Promise.all([
       algokit.ensureFunded({
         accountToFund: lender.addr,
-        minSpendingBalance: algokit.algos(1e6 + 10),
+        // Has to have enough to just hold ALGO, opt in to app, deposit 1 million ALGO,
+        //  send 3 transactions total.
+        minSpendingBalance: algokit.microAlgos(100_500 + 1e12 + 3e4),
       }, algod, kmd),
       algokit.ensureFunded({
         accountToFund: borrower.addr,
-        minSpendingBalance: algokit.microAlgos(0),
+        // Has to have enough to hold ALGO and ASA, send 6 transactions total.
+        minSpendingBalance: algokit.microAlgos(1e5 + 6e4),
+      }, algod, kmd),
+      algokit.ensureFunded({
+        accountToFund: buyer.addr,
+        // Has to have enough to hold ALGO and ASA, pay 1 million ALGO, send 2 transactions total.
+        minSpendingBalance: algokit.microAlgos(1e12 + 1e5 + 2e4),
+      }, algod, kmd),
+      algokit.ensureFunded({
+        accountToFund: seller.addr,
+        // Has to have enough to hold ALGO and ASA, send 2 transactions total.
+        minSpendingBalance: algokit.microAlgos(1e5 + 2e4),
       }, algod, kmd),
     ]);
 
@@ -60,7 +68,7 @@ describe('FlashLoan', () => {
         decimals: 0,
       }).signTxn(testAccount.sk),
     ).do();
-    const result = await algosdk.waitForConfirmation(algod, createTicket.txId, 3);
+    assetIndex = await algosdk.waitForConfirmation(algod, createTicket.txId, 3).then((x) => x['asset-index']);
 
     // Opt-in to the ASA. The borrower will opt-in and opt-out in the context of the flash loan.
     await Promise.all([buyer, seller].map(async (account) => {
@@ -69,7 +77,7 @@ describe('FlashLoan', () => {
           from: account.addr,
           suggestedParams: await algod.getTransactionParams().do(),
           to: account.addr,
-          assetIndex: result['asset-index'],
+          assetIndex,
           amount: 0,
         }).signTxn(account.sk),
       ).do();
@@ -82,7 +90,7 @@ describe('FlashLoan', () => {
         from: testAccount.addr,
         suggestedParams: await algod.getTransactionParams().do(),
         to: seller.addr,
-        assetIndex: result['asset-index'],
+        assetIndex,
         amount: 10,
       }).signTxn(testAccount.sk),
     ).do();
@@ -102,20 +110,87 @@ describe('FlashLoan', () => {
 
   test('deposit', async () => {
     const { appAddress } = await appClient.appClient.getAppReference();
-    const deposit = algosdk.makePaymentTxnWithSuggestedParams(
-      lender.addr,
-      appAddress,
-      1e12,
-      undefined,
-      undefined,
-      await algod.getTransactionParams().do(),
-    );
+    const deposit = algosdk.makePaymentTxnWithSuggestedParamsFromObject({
+      from: lender.addr,
+      to: appAddress,
+      amount: 1e12,
+      suggestedParams: await algod.getTransactionParams().do(),
+    });
     await appClient.optIn.deposit({ payment: deposit }, { sender: lender });
   });
 
-  // test('flashLoan', async () => {
-  //
-  // });
+  test('flashLoan', async () => {
+    const borrowerOptIn = algosdk.makeAssetTransferTxnWithSuggestedParamsFromObject({
+      from: borrower.addr,
+      suggestedParams: { ...await algod.getTransactionParams().do(), flatFee: true, fee: 1e3 },
+      to: borrower.addr,
+      assetIndex,
+      amount: 0,
+    });
+    const sellerGiveTx = algosdk.makeAssetTransferTxnWithSuggestedParamsFromObject({
+      from: seller.addr,
+      suggestedParams: { ...await algod.getTransactionParams().do(), flatFee: true, fee: 1e3 },
+      to: borrower.addr,
+      assetIndex,
+      amount: 10,
+    });
+    const sellerGetTx = algosdk.makePaymentTxnWithSuggestedParamsFromObject({
+      from: borrower.addr,
+      suggestedParams: { ...await algod.getTransactionParams().do(), flatFee: true, fee: 1e3 },
+      to: seller.addr,
+      amount: 1e11,
+    });
+    const buyerGiveTx = algosdk.makePaymentTxnWithSuggestedParamsFromObject({
+      from: buyer.addr,
+      suggestedParams: { ...await algod.getTransactionParams().do(), flatFee: true, fee: 1e3 },
+      to: borrower.addr,
+      amount: 1e12,
+    });
+    const buyerGetTx = algosdk.makeAssetTransferTxnWithSuggestedParamsFromObject({
+      from: borrower.addr,
+      suggestedParams: { ...await algod.getTransactionParams().do(), flatFee: true, fee: 1e3 },
+      to: buyer.addr,
+      assetIndex,
+      amount: 10,
+    });
+    const borrowerOptOut = algosdk.makeAssetTransferTxnWithSuggestedParamsFromObject({
+      from: borrower.addr,
+      suggestedParams: { ...await algod.getTransactionParams().do(), flatFee: true, fee: 1e3 },
+      to: testAccount.addr,
+      assetIndex,
+      amount: 0,
+      closeRemainderTo: testAccount.addr,
+    });
+
+    const { appAddress } = await appClient.appClient.getAppReference();
+    const repayTx = algosdk.makePaymentTxnWithSuggestedParamsFromObject({
+      from: borrower.addr,
+      to: appAddress,
+      amount: 1e12,
+      suggestedParams: { ...await algod.getTransactionParams().do(), flatFee: true, fee: 1e3 },
+    });
+
+    const borrowerInfoPreFlashLoan = await algod.accountInformation(borrower.addr).do();
+
+    await appClient
+      .compose()
+      .openFlashLoan(
+        { amount: 1e12 },
+        { sender: borrower, sendParams: { fee: algokit.microAlgos(2e3) } },
+      )
+      .addTransaction(borrowerOptIn, borrower)
+      .addTransaction(sellerGiveTx, seller)
+      .addTransaction(sellerGetTx, borrower)
+      .addTransaction(buyerGiveTx, buyer)
+      .addTransaction(buyerGetTx, borrower)
+      .addTransaction(borrowerOptOut, borrower)
+      .closeFlashLoan({ repay: repayTx }, { sender: borrower })
+      .execute();
+
+    const borrowerInfoPostFlashLoan = await algod.accountInformation(borrower.addr).do();
+    // The borrower should have profited 900k ALGO for the arbitrage minus fees.
+    expect(borrowerInfoPostFlashLoan.amount - borrowerInfoPreFlashLoan.amount).toBe(9e11 - 8e3);
+  });
 
   test('withdraw', async () => {
     await appClient.withdraw(
