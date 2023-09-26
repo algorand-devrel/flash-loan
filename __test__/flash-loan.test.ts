@@ -11,12 +11,21 @@ const fixture = algorandFixture();
 let appClient: FlashLoanClient;
 
 describe('FlashLoan', () => {
+  let algod: algosdk.Algodv2;
+  let sender: algosdk.Account;
   beforeEach(fixture.beforeEach);
 
   beforeAll(async () => {
     await fixture.beforeEach();
-    const { algod, testAccount } = fixture.context;
-    const sender = algosdk.generateAccount();
+    algod = fixture.context.algod;
+    const { testAccount, kmd } = fixture.context;
+    sender = await algokit.getOrCreateKmdWalletAccount({
+      name: 'flash-loan-sender',
+    }, algod, kmd);
+    await algokit.ensureFunded({
+      accountToFund: sender.addr,
+      minSpendingBalance: algokit.algos(1e6 + 10),
+    }, algod, kmd);
 
     appClient = new FlashLoanClient(
       {
@@ -30,17 +39,16 @@ describe('FlashLoan', () => {
     await appClient.create.bare();
   });
 
-  test('sum', async () => {
-    const a = 13;
-    const b = 37;
-    const sum = await appClient.doMath({ a, b, operation: 'sum' });
-    expect(sum.return?.valueOf()).toBe(BigInt(a + b));
-  });
-
-  test('difference', async () => {
-    const a = 13;
-    const b = 37;
-    const diff = await appClient.doMath({ a, b, operation: 'difference' });
-    expect(diff.return?.valueOf()).toBe(BigInt(a >= b ? a - b : b - a));
+  test('deposit', async () => {
+    const { appAddress } = await appClient.appClient.getAppReference();
+    const deposit = algosdk.makePaymentTxnWithSuggestedParams(
+      sender.addr,
+      appAddress,
+      1e12,
+      undefined,
+      undefined,
+      await algod.getTransactionParams().do(),
+    );
+    await appClient.optIn.deposit({ payment: deposit }, { sender });
   });
 });
