@@ -119,6 +119,8 @@ describe('FlashLoan', () => {
     await appClient.optIn.deposit({ payment: deposit }, { sender: lender });
   });
 
+  // PLEASE REFER TO THE README FOR SOME CONSIDERATION ON THIS TEST AND
+  //  THE ASSUMPTIONS THAT IT RELIES ON.
   test('flashLoan', async () => {
     const borrowerOptIn = algosdk.makeAssetTransferTxnWithSuggestedParamsFromObject({
       from: borrower.addr,
