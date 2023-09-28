@@ -2,7 +2,8 @@
 
 ## ! Disclaimer !
 **This code should not be considered a reference implementation or a set of guidelines on how to implement
-flash loans on Algorand. This is only a demonstration of the Layer-1 capabilities of the protocol.**
+flash loans on Algorand. This is only a demonstration of the Layer-1 capabilities of the protocol.  
+This code is written in the context of [this](https://developer.algorand.org/solutions/temp-do-not-publish-flash-loans-on-tealscript-vs-solidity/) article on Algorand Developer Portal**
 
 ## Introduction
 This project is a proof of concept for flash loans on Algorand. It implements flash loans as atomic group transactions

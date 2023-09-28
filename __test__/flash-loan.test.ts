@@ -30,7 +30,7 @@ describe('FlashLoan', () => {
     // Create all accounts involved in the arbitrage.
     [lender, borrower, buyer, seller] = await Promise.all([
       algokit.getOrCreateKmdWalletAccount({ name: 'flash-loan-lender' }, algod, kmd),
-      algokit.getOrCreateKmdWalletAccount({ name: 'flash-loan-borrower' }, algod, kmd),
+      algosdk.generateAccount(),
       algokit.getOrCreateKmdWalletAccount({ name: 'flash-loan-buyer' }, algod, kmd),
       algokit.getOrCreateKmdWalletAccount({ name: 'flash-loan-seller' }, algod, kmd),
     ]);
@@ -38,23 +38,23 @@ describe('FlashLoan', () => {
       algokit.ensureFunded({
         accountToFund: lender.addr,
         // Has to have enough to just hold ALGO, opt in to app, deposit 1 million ALGO,
-        //  send 3 transactions total.
-        minSpendingBalance: algokit.microAlgos(100_500 + 1e12 + 3e4),
+        //  send 4 transactions total.
+        minSpendingBalance: algokit.microAlgos(128_500 + 1e12 + 4e3),
       }, algod, kmd),
       algokit.ensureFunded({
         accountToFund: borrower.addr,
-        // Has to have enough to hold ALGO and ASA, send 6 transactions total.
-        minSpendingBalance: algokit.microAlgos(1e5 + 6e4),
+        // Has to have enough to hold ALGO and ASA, send 8 transactions total.
+        minSpendingBalance: algokit.microAlgos(1e5 + 8e3),
       }, algod, kmd),
       algokit.ensureFunded({
         accountToFund: buyer.addr,
         // Has to have enough to hold ALGO and ASA, pay 1 million ALGO, send 2 transactions total.
-        minSpendingBalance: algokit.microAlgos(1e12 + 1e5 + 2e4),
+        minSpendingBalance: algokit.microAlgos(1e12 + 1e5 + 2e3),
       }, algod, kmd),
       algokit.ensureFunded({
         accountToFund: seller.addr,
         // Has to have enough to hold ALGO and ASA, send 2 transactions total.
-        minSpendingBalance: algokit.microAlgos(1e5 + 2e4),
+        minSpendingBalance: algokit.microAlgos(1e5 + 2e3),
       }, algod, kmd),
     ]);
 
@@ -122,42 +122,44 @@ describe('FlashLoan', () => {
   // PLEASE REFER TO THE README FOR SOME CONSIDERATION ON THIS TEST AND
   //  THE ASSUMPTIONS THAT IT RELIES ON.
   test('flashLoan', async () => {
+    const sp = await algod.getTransactionParams().do();
+
     const borrowerOptIn = algosdk.makeAssetTransferTxnWithSuggestedParamsFromObject({
       from: borrower.addr,
-      suggestedParams: { ...await algod.getTransactionParams().do(), flatFee: true, fee: 1e3 },
+      suggestedParams: { ...sp, flatFee: true, fee: 1e3 },
       to: borrower.addr,
       assetIndex,
       amount: 0,
     });
     const sellerGiveTx = algosdk.makeAssetTransferTxnWithSuggestedParamsFromObject({
       from: seller.addr,
-      suggestedParams: { ...await algod.getTransactionParams().do(), flatFee: true, fee: 1e3 },
+      suggestedParams: { ...sp, flatFee: true, fee: 1e3 },
       to: borrower.addr,
       assetIndex,
       amount: 10,
     });
     const sellerGetTx = algosdk.makePaymentTxnWithSuggestedParamsFromObject({
       from: borrower.addr,
-      suggestedParams: { ...await algod.getTransactionParams().do(), flatFee: true, fee: 1e3 },
+      suggestedParams: { ...sp, flatFee: true, fee: 1e3 },
       to: seller.addr,
       amount: 1e11,
     });
     const buyerGiveTx = algosdk.makePaymentTxnWithSuggestedParamsFromObject({
       from: buyer.addr,
-      suggestedParams: { ...await algod.getTransactionParams().do(), flatFee: true, fee: 1e3 },
+      suggestedParams: { ...sp, flatFee: true, fee: 1e3 },
       to: borrower.addr,
       amount: 1e12,
     });
     const buyerGetTx = algosdk.makeAssetTransferTxnWithSuggestedParamsFromObject({
       from: borrower.addr,
-      suggestedParams: { ...await algod.getTransactionParams().do(), flatFee: true, fee: 1e3 },
+      suggestedParams: { ...sp, flatFee: true, fee: 1e3 },
       to: buyer.addr,
       assetIndex,
       amount: 10,
     });
     const borrowerOptOut = algosdk.makeAssetTransferTxnWithSuggestedParamsFromObject({
       from: borrower.addr,
-      suggestedParams: { ...await algod.getTransactionParams().do(), flatFee: true, fee: 1e3 },
+      suggestedParams: { ...sp, flatFee: true, fee: 1e3 },
       to: testAccount.addr,
       assetIndex,
       amount: 0,
@@ -169,10 +171,13 @@ describe('FlashLoan', () => {
       from: borrower.addr,
       to: appAddress,
       amount: 1e12,
-      suggestedParams: { ...await algod.getTransactionParams().do(), flatFee: true, fee: 1e3 },
+      suggestedParams: { ...sp, flatFee: true, fee: 1e3 },
     });
 
     const borrowerInfoPreFlashLoan = await algod.accountInformation(borrower.addr).do();
+    // The borrower has a balance that only allows them to hold ALGO and ASA and
+    //  send 8 transactions.
+    expect(borrowerInfoPreFlashLoan.amount).toBe(2e5 + 8e3);
 
     await appClient
       .compose()
